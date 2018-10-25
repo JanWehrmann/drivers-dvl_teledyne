@@ -9,7 +9,7 @@ using namespace dvl_teledyne;
 Driver::Driver()
     : iodrivers_base::Driver(1000000)
     , mConfMode(false)
-    , mDesiredBaudrate(9600)
+    , mDesiredBaudrate(BR9600)
 {
     buffer.resize(1000000);
 }
@@ -18,7 +18,7 @@ void Driver::open(std::string const& uri)
 {
     openURI(uri);
     setConfigurationMode();
-    if (mDesiredBaudrate != 9600)
+    if (mDesiredBaudrate != BR9600)
         setDesiredBaudrate(mDesiredBaudrate);
 
     startAcquisition();
@@ -47,34 +47,11 @@ void Driver::sendConfigurationFile(std::string const& file_name)
     }
 }
 
-void Driver::setDesiredBaudrate(int rate)
+void Driver::setDesiredBaudrate(BAUDRATE rate)
 {
     if (getFileDescriptor() != iodrivers_base::Driver::INVALID_FD)
-        setDeviceBaudrate(rate);
+        setSerialPortControlSettings(rate, NONE, 1);
     mDesiredBaudrate = rate;
-}
-
-void Driver::setDeviceBaudrate(int rate)
-{
-    setConfigurationMode();
-
-    int code = 0;
-    switch(rate)
-    {
-        case 300: code = 0; break;
-        case 1200: code = 1; break;
-        case 2400: code = 2; break;
-        case 4800: code = 3; break;
-        case 9600: code = 4; break;
-        case 19200: code = 5; break;
-        case 38400: code = 6; break;
-        case 57600: code = 7; break;
-        case 115200: code = 8; break;
-        default: throw std::runtime_error("invalid baud rate specified");
-    }
-    uint8_t data[7] = { 'C', 'B', '0' + code, '1', '1', '\n', 0 };
-    writePacket(data, 6, 100);
-    readConfigurationAck();
 }
 
 void Driver::read()
@@ -119,6 +96,9 @@ int Driver::extractPacket (uint8_t const *buffer, size_t buffer_size) const
 
 void Driver::setConfigurationMode()
 {
+    if (mConfMode)
+        return;
+
     if (tcsendbreak(getFileDescriptor(), 0))
         throw iodrivers_base::UnixError("failed to set configuration mode");
     mConfMode = true;
@@ -170,6 +150,7 @@ void Driver::setOutputConfiguration(OutputConfiguration conf)
         (conf.use_bin_mapping ? '1' : '0') };
 
     writePacket(cmd, 7, 500);
+    readConfigurationAck();
 }
 
 void Driver::startAcquisition()
@@ -184,3 +165,222 @@ void Driver::startAcquisition()
     mConfMode = false;
 }
 
+void Driver::setBottomTrackPingsPerEnsemble(int bottomTrackPingsPerEnsemble)
+{
+    sendStandardCommand(std::string("BP"), bottomTrackPingsPerEnsemble, 3);
+}
+
+void Driver::setMaximumTrackingDepth(int maximumTrackingDepth)
+{
+    sendStandardCommand(std::string("BX"), maximumTrackingDepth, 5);
+}
+
+void Driver::setSerialPortControlSettings(BAUDRATE baudrate, PARITY parity, int stopBits)
+{
+    setConfigurationMode();
+    writePacket(reinterpret_cast<uint8_t const*>(("CB" + std::to_string(baudrate)
+                                                      + std::to_string(parity)
+                                                      + std::to_string(stopBits)
+                                                      + "\n").c_str()), 6);
+    readConfigurationAck();
+}
+
+void Driver::setFlowControlSettings(bool automaticEnsembleCycling,
+                                    bool automaticPingCycling,
+                                    bool binaryDataOutput,
+                                    bool enableSerialOutput,
+                                    bool enableDataRecording)
+{
+    setConfigurationMode();
+    writePacket(reinterpret_cast<uint8_t const*>(("CF" + std::to_string(automaticEnsembleCycling)
+                                                      + std::to_string(automaticPingCycling)
+                                                      + std::to_string(binaryDataOutput)
+                                                      + std::to_string(enableSerialOutput)
+                                                      + std::to_string(enableDataRecording)
+                                                      + "\n").c_str()), 8);
+    readConfigurationAck();
+}
+
+void Driver::setHeadingAlignment(int headingAlignment)
+{
+    sendStandardCommand(std::string("EA"), headingAlignment, 5, true);
+}
+
+void Driver::set_e_headingBias(int e_headingBias)
+{
+    sendStandardCommand(std::string("#EV"), e_headingBias, 5, true, true);
+}
+
+void Driver::setSalinity(int salinity)
+{
+    sendStandardCommand(std::string("ES"), salinity, 2);
+}
+
+void Driver::setSensorSourceSettings(SENSORSOURCE speedOfSoundSource,
+                                     SENSORSOURCE depthSource,
+                                     SENSORSOURCE headingSource,
+                                     SENSORSOURCE pitchAndRollSource,
+                                     SENSORSOURCE salinitySource,
+                                     SENSORSOURCE temperatureSource)
+{
+    setConfigurationMode();
+    writePacket(reinterpret_cast<uint8_t const*>(("EZ" + std::to_string(speedOfSoundSource)
+                                                      + std::to_string(depthSource)
+                                                      + std::to_string(headingSource)
+                                                      + std::to_string(pitchAndRollSource)
+                                                      + std::to_string(salinitySource)
+                                                      + std::to_string(temperatureSource)
+                                                      + "\n").c_str()), 7);
+    readConfigurationAck();
+}
+
+void Driver::setTimePerEnsemble(const base::Time& timePerEnsemble)
+{
+    setConfigurationMode();
+    std::vector<int> timeSplits = splitTime(timePerEnsemble);
+    std::vector<std::string> timeStrings;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        std::string timeString = std::to_string(timeSplits.at(i));
+        if (getNumberOfDigits(timeString) == 1)
+            timeString = "0" + timeString;
+        timeStrings.push_back(timeString);
+    }
+
+    writePacket(reinterpret_cast<uint8_t const*>(("TE" + timeStrings.at(3) + ":"
+                                                      + timeStrings.at(2) + ":"
+                                                      + timeStrings.at(1) + "."
+                                                      + timeStrings.at(0) + "\n").c_str()), 14);
+    readConfigurationAck();
+}
+
+void Driver::setTimeBetweenPings(const base::Time& timeBetweenPings)
+{
+    setConfigurationMode();
+    std::vector<int> timeSplits = splitTime(timeBetweenPings);
+    std::vector<std::string> timeStrings;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        std::string timeString = std::to_string(timeSplits.at(i));
+        if (getNumberOfDigits(timeString) == 1)
+            timeString = "0" + timeString;
+        timeStrings.push_back(timeString);
+    }
+
+    writePacket(reinterpret_cast<uint8_t const*>(("TP" + timeStrings.at(3) + ":"
+                                                      + timeStrings.at(2) + ":"
+                                                      + timeStrings.at(1) + "."
+                                                      + timeStrings.at(0) + "\n").c_str()), 14);
+    readConfigurationAck();
+}
+
+void Driver::setNumberOfDepthCells(int numberOfDepthCells)
+{
+    sendStandardCommand(std::string("WN"), numberOfDepthCells, 3);
+}
+
+void Driver::setPingsPerEnsemble(int pingsPerEnsemble)
+{
+    sendStandardCommand(std::string("WP"), pingsPerEnsemble, 5);
+}
+
+void Driver::setDepthCellSize(int depthCellSize)
+{
+    sendStandardCommand(std::string("WS"), depthCellSize, 4);
+}
+
+void Driver::applyConfig(const dvl_teledyne::Config& conf)
+{
+    setBottomTrackPingsPerEnsemble(conf.bottomTrackPingsPerEnsemble);
+    setMaximumTrackingDepth(conf.maximumTrackingDepth);
+    setFlowControlSettings(conf.automaticEnsembleCycling,
+                                conf.automaticPingCycling,
+                                conf.binaryDataOutput,
+                                conf.enableSerialOutput,
+                                conf.enableDataRecording);
+    setHeadingAlignment(conf.headingAlignment);
+    setSalinity(conf.salinity);
+    set_e_headingBias(conf.e_headingBias);
+
+    OutputConfiguration outputConf;
+    outputConf.coordinate_system = conf.transformation;
+    outputConf.use_attitude = conf.useTiltsInTransformation;
+    outputConf.use_3beam_solution = conf.allow3BeamSolutions;
+    outputConf.use_bin_mapping = conf.allowBinMapping;
+    setOutputConfiguration(outputConf);
+
+    setSensorSourceSettings(conf.speedOfSoundSource,
+                                    conf.depthSource,
+                                    conf.headingSource,
+                                    conf.pitchAndRollSource,
+                                    conf.salinitySource,
+                                    conf.temperatureSource);
+    setTimePerEnsemble(conf.timePerEnsemble);
+    setTimeBetweenPings(conf.timeBetweenPings);
+    setNumberOfDepthCells(conf.numberOfDepthCells);
+    setPingsPerEnsemble(conf.pingsPerEnsemble);
+    setDepthCellSize(conf.depthCellSize);
+
+    // Save in case communication fails after altering serial port control settings.
+    writePacket(reinterpret_cast<uint8_t const*>("CK\n"), 3, 100);
+    readConfigurationAck();
+
+    setSerialPortControlSettings(conf.baudrate, conf.parity, conf.stopBits);
+    // Save again to save serialPortControlSettings.
+    writePacket(reinterpret_cast<uint8_t const*>("CK\n"), 3, 100);
+    readConfigurationAck();
+}
+
+void Driver::sendStandardCommand(const std::string& characters, int value, int numDigits, bool sign, bool expert)
+{
+    setConfigurationMode();
+    std::string command = characters;
+
+    if (sign && value < 0)
+        command += "-";
+    else if (sign)
+        command += "+";
+
+    for (int n = getNumberOfDigits(value); n < numDigits; ++n)
+    {
+        command += "0";
+    }
+
+    command += std::to_string(value);
+
+    if (sign)
+        ++numDigits;
+    if (expert)
+        ++numDigits;
+
+    writePacket(reinterpret_cast<uint8_t const*>((command + "\n").c_str()), numDigits + 3);
+    readConfigurationAck();
+}
+
+int Driver::getNumberOfDigits(const std::string& stringOfValue) const
+{
+    int numDigits = stringOfValue.size() - 1;
+
+    return numDigits;
+}
+
+std::vector<int> Driver::splitTime(const base::Time& microseconds) const
+{
+    int centiseconds = microseconds.microseconds / 10000;
+    int hours = centiseconds / 360000;
+    centiseconds -= hours * 360000;
+    int minutes = centiseconds / 6000;
+    centiseconds -= minutes * 6000;
+    int seconds = centiseconds / 100;
+    centiseconds -= seconds * 100;
+
+    std::vector<int> timeSplits;
+    timeSplits.push_back(centiseconds);
+    timeSplits.push_back(seconds);
+    timeSplits.push_back(minutes);
+    timeSplits.push_back(hours);
+
+    return timeSplits;
+}
