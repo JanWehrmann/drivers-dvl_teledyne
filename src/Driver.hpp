@@ -3,6 +3,7 @@
 
 #include <iodrivers_base/Driver.hpp>
 #include <dvl_teledyne/PD0Parser.hpp>
+#include <dvl_teledyne/Config.hpp>
 
 namespace dvl_teledyne
 {
@@ -12,10 +13,7 @@ namespace dvl_teledyne
         int extractPacket (uint8_t const *buffer, size_t buffer_size) const;
 
         bool mConfMode;
-        int mDesiredBaudrate;
-
-        /** Tells the DVL to switch to the desired rate */
-        void setDeviceBaudrate(int rate);
+        BAUDRATE mDesiredBaudrate;
 
     public:
         Driver();
@@ -31,7 +29,7 @@ namespace dvl_teledyne
          * device to output at a different baud rate, and modifies the driver's
          * configuration accordingly
          */
-        void setDesiredBaudrate(int rate);
+        void setDesiredBaudrate(dvl_teledyne::BAUDRATE rate);
 
         /** Configures the output coordinate system */
         void setOutputConfiguration(OutputConfiguration conf);
@@ -63,6 +61,79 @@ namespace dvl_teledyne
          * Throws std::runtime_error if an error is reported by the device
          */
         void readConfigurationAck(base::Time const& timeout = base::Time::fromSeconds(1));
+
+        /** Configures the number of bottom-track pings per data ensemble.*/
+        void setBottomTrackPingsPerEnsemble(int bottomTrackPingsPerEnsemble);
+
+        /** Configures the maximum tracking depth (10 - 65535 dm).*/
+        void setMaximumTrackingDepth(float maximumTrackingDepth);
+
+        /** Configures the serial port control settings (stopBits : 1 or 2).*/
+        void setSerialPortControlSettings(BAUDRATE baudrate, PARITY parity, int stopBits);
+
+        /** Configures wether ensemble and ping cycling are handled
+         * automatically or manually, wether data output is sent in binary or
+         * hex-ASCII format, and wether data is sent via the serial interface or not.
+         */
+        void setFlowControlSettings(bool automaticEnsembleCycling,
+                                    bool automaticPingCycling,
+                                    bool binaryDataOutput,
+                                    bool enableSerialOutput,
+                                    bool enableDataRecording);
+
+        /** Configures the correction between the heading reference and beam 3 of the
+         * DVL (-17999 - 18000 hundreths of a degree).
+         */
+        void setHeadingAlignment(float headingAlignment);
+
+        /** Same as setHeadingAlignment but corrects for electrical and magnetic bias
+         * instead of physikal misalignment.*/
+        void set_e_headingBias(float e_headingBias);
+
+        /** Configures the waters salinity (0 - 40 parts per thousand).*/
+        void setSalinity(int salinity);
+
+        /** Configures the sensor sources (fixed manual value, internal sensor, external sensor).*/
+        void setSensorSourceSettings(SENSORSOURCE speedOfSoundSource,
+                                     SENSORSOURCE depthSource,
+                                     SENSORSOURCE headingSource,
+                                     SENSORSOURCE pitchAndRollSource,
+                                     SENSORSOURCE salinitySource,
+                                     SENSORSOURCE temperatureSource);
+
+        /** Configures the minimum interval between ensemble acquisition (0 - 24h59'59.99").*/
+        void setTimePerEnsemble(const base::Time& timePerEnsemble);
+
+        /** Configures the minimum time between pings (0 - 59'59.99").*/
+        void setTimeBetweenPings(const base::Time& timeBetweenPings);
+
+        /** Configures the number of depth cells (1 - 255).*/
+        void setNumberOfDepthCells(int numberOfDepthCells);
+
+        /** Configures the number of pings per data ensemble during water profiling (0 - 16384).*/
+        void setPingsPerEnsemble(int pingsPerEnsemble);
+
+        /** Configures the height of one measurement cell (10 - 800 cm).*/
+        void setDepthCellSize(float depthCellSize);
+
+        /** Sends all configured settings to the dvl and saves them to non volatile memory.
+         * NOTE: Sets baudrate, parity and stop bits last and tries saving again afterwards.
+         * This will likely fail if you have changed those settings since you need to
+         * reconfigure the sending device to match the new settings.
+         */
+        void applyConfig(const dvl_teledyne::Config& conf);
+
+    protected:
+        /** Sends a standard formatted command to the dvl.
+         * @param characters Characters that specify the command, e.g.: BP
+         * @param value Value the corresponding setting shall be set to
+         * @param numDigits number of digits the value has in the expected format of the command, e.g.: BP001 -> numDigits = 3
+         *                  This will be used to fill the command string with the needed amount of zeros to fit the format.
+         * @param sign set true if the command format includes a sign, e.g.: EA+04500
+         * @param expert set true if the command to be send is an expert command, e.g.: #EV
+         *               Note that you will need to include the # in the characters string
+         */
+        void sendStandardCommand(const std::string& characters, int value, int numDigits, bool sign = false, bool expert = false);
     };
 }
 
