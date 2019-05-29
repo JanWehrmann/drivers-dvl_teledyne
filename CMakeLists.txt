@@ -3,4 +3,7 @@
 cmake_minimum_required(VERSION 2.6)
 find_package(Rock)
 rock_init(dvl_teledyne 0.1)
+
+set(CMAKE_CXX_STANDARD 11)
+
 rock_standard_layout()

@@ -3,6 +3,8 @@
 
 #include <iodrivers_base/Driver.hpp>
 #include <dvl_teledyne/PD0Parser.hpp>
+#include <dvl_teledyne/Config.hpp>
+
 
 namespace dvl_teledyne
 {
@@ -12,10 +14,7 @@ namespace dvl_teledyne
         int extractPacket (uint8_t const *buffer, size_t buffer_size) const;
 
         bool mConfMode;
-        int mDesiredBaudrate;
-
-        /** Tells the DVL to switch to the desired rate */
-        void setDeviceBaudrate(int rate);
+        BAUDRATE mDesiredBaudrate;
 
     public:
         Driver();
@@ -31,7 +30,7 @@ namespace dvl_teledyne
          * device to output at a different baud rate, and modifies the driver's
          * configuration accordingly
          */
-        void setDesiredBaudrate(int rate);
+        void setDesiredBaudrate(dvl_teledyne::BAUDRATE rate);
 
         /** Configures the output coordinate system */
         void setOutputConfiguration(OutputConfiguration conf);
@@ -63,6 +62,99 @@ namespace dvl_teledyne
          * Throws std::runtime_error if an error is reported by the device
          */
         void readConfigurationAck(base::Time const& timeout = base::Time::fromSeconds(1));
+
+        /** Configures the number of bottom-track pings per data ensemble.*/
+        void setBottomTrackPingsPerEnsemble(int bottomTrackPingsPerEnsemble);
+
+        /** Configures the maximum tracking depth.
+         * @param maximumTrackingDepth tracking depth in meters. Must be between 1 and 6553.5.
+         */
+        void setMaximumTrackingDepth(float maximumTrackingDepth);
+
+        /** Configures the serial port control settings
+         * @param stopBits must be either 1 or 2.
+         * (stopBits : 1 or 2).*/
+        void setSerialPortControlSettings(BAUDRATE baudrate, PARITY parity, int stopBits);
+
+        /** Configures wether ensemble and ping cycling are handled
+         * automatically or manually, wether data output is sent in binary or
+         * hex-ASCII format, and wether data is sent via the serial interface or not.
+         */
+        void setFlowControlSettings(bool automaticEnsembleCycling,
+                                    bool automaticPingCycling,
+                                    bool binaryDataOutput,
+                                    bool enableSerialOutput,
+                                    bool enableDataRecording);
+
+        /** Configures the correction between the heading reference and beam 3 of the
+         * DVL.
+         * @param headingAlignment offset in radians, between -179.99 and +180 degrees.
+         */
+        void setHeadingAlignment(base::Angle headingAlignment);
+
+        /** Same as setHeadingAlignment() but corrects for electrical and magnetic bias
+         * instead of physical misalignment.
+         * @param e_headingBias offset in radians, between -179.99 and +180 degrees.
+         */
+        void set_e_headingBias(base::Angle e_headingBias);
+
+        /** Configures the waters salinity.
+         * @param salinity in parts per thousand. Must be between 0 and 40.
+         */
+        void setSalinity(int salinity);
+
+        /** Configures the sensor sources (fixed manual value, internal sensor, external sensor).*/
+        void setSensorSourceSettings(SENSORSOURCE speedOfSoundSource,
+                                     SENSORSOURCE depthSource,
+                                     SENSORSOURCE headingSource,
+                                     SENSORSOURCE pitchAndRollSource,
+                                     SENSORSOURCE salinitySource,
+                                     SENSORSOURCE temperatureSource);
+
+        /** Configures the minimum interval between ensemble acquisition.
+         * @param timePerEnsemble must be between 0 and 24h59'59.99".
+         */
+        void setTimePerEnsemble(const base::Time& timePerEnsemble);
+
+        /** Configures the minimum time between pings.
+         * @param timeBetweenPings must be between 0 and 59'59.99".
+         */
+        void setTimeBetweenPings(const base::Time& timeBetweenPings);
+
+        /** Configures the number of depth cells.
+         * @param numberOfDepthCells must be between 1 and 255.
+         */
+        void setNumberOfDepthCells(int numberOfDepthCells);
+
+        /** Configures the number of pings per data ensemble during water profiling.
+         * @param pingsPerEnsemble must be between 0 and 16384.
+         */
+        void setPingsPerEnsemble(int pingsPerEnsemble);
+
+        /** Configures the height of one measurement cell.
+         * @param depthCellSize the size of a depth cell in meters. Must be between 0.01 and 8.
+         */
+        void setDepthCellSize(float depthCellSize);
+
+        /** Sends all configured settings to the dvl and saves them to non volatile memory.
+         * NOTE: Sets baudrate, parity and stop bits last and tries saving again afterwards.
+         * This will likely fail if you have changed those settings since you need to
+         * reconfigure the sending device to match the new settings.
+         */
+        void applyConfig(const dvl_teledyne::Config& conf);
+
+    protected:
+        /** Sends a standard formatted command to the dvl.
+         * @param characters Characters that specify the command, e.g.: BP
+         * @param value Value the corresponding setting shall be set to
+         * @param numDigits number of digits the value has in the expected format of the command, e.g.: BP001 -> numDigits = 3
+         *                  This will be used to fill the command string with the needed amount of zeros to fit the format.
+         * @param sign set true if the command format includes a sign, e.g.: EA+04500
+         */
+        void sendStandardCommand(const std::string& characters, int value, int numDigits, bool sign = false);
+
+        /** Internal method used in sendStandardCommand(). Allows for easier testing.*/
+        std::string parseStandardCommand(const std::string& characters, int value, int numDigits, bool sign = false);
     };
 }
 
