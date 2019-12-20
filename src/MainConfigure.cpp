@@ -28,7 +28,6 @@ int main(int argc, char const* argv[])
     // The file might contain a CS command. Make sure we are still in
     // configuration mode
     driver.setConfigurationMode();
-    driver.startAcquisition();
 }
 
 

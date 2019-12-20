@@ -3,7 +3,7 @@
 
 void usage()
 {
-    std::cerr << "dvl_teledyne_info DEVICE" << std::endl;
+    std::cerr << "dvl_teledyne_info serial://PATH/TO/DEVICE:BAUDRATE" << std::endl;
 }
 
 int main(int argc, char const* argv[])
@@ -15,7 +15,8 @@ int main(int argc, char const* argv[])
     }
 
     dvl_teledyne::Driver driver;
-    driver.open(argv[1]);
+    driver.openURI(argv[1]);
+    driver.startAcquisition();
     driver.setReadTimeout(base::Time::fromSeconds(5));
     driver.read();
 
@@ -34,6 +35,9 @@ int main(int argc, char const* argv[])
     std::cout << "    salinity: "  << (sensors.salinity ? "yes" : "no") << std::endl;
     std::cout << "    temperature: "  << (sensors.temperature ? "yes" : "no") << std::endl;
     std::cout << std::endl;
+
+    driver.setConfigurationMode();
+
     return 0;
 }
 

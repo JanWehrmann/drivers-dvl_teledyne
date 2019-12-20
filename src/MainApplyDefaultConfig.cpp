@@ -6,7 +6,7 @@ using namespace dvl_teledyne;
 
 void usage()
 {
-    std::cerr << "dvl_teledyne_config_configure serial:///path/to/device:baudrate" << std::endl;
+    std::cerr << "dvl_teledyne_config_configure serial://PATH/TO/DEVICE:BAUDRATE" << std::endl;
 }
 
 int main(int argc, char const* argv[])
@@ -18,7 +18,7 @@ int main(int argc, char const* argv[])
     }
 
     dvl_teledyne::Driver driver;
-    driver.open(argv[1]);
+    driver.openURI(argv[1]);
 
     Config config;
 

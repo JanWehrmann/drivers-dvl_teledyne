@@ -9,20 +9,9 @@ using namespace dvl_teledyne;
 Driver::Driver()
     : iodrivers_base::Driver(1000000)
     , mConfMode(false)
-    , mDesiredBaudrate(BR9600)
 {
     m_read_timeout = base::Time::fromSeconds(1.);
     buffer.resize(1000000);
-}
-
-void Driver::open(std::string const& uri)
-{
-    openURI(uri);
-    setConfigurationMode();
-    if (mDesiredBaudrate != BR9600)
-        setDesiredBaudrate(mDesiredBaudrate);
-
-    startAcquisition();
 }
 
 void Driver::sendConfigurationFile(std::string const& file_name)
@@ -46,13 +35,6 @@ void Driver::sendConfigurationFile(std::string const& file_name)
         writePacket(reinterpret_cast<uint8_t const*>(line.c_str()), line.length());
         readConfigurationAck(m_read_timeout);
     }
-}
-
-void Driver::setDesiredBaudrate(BAUDRATE rate)
-{
-    if (getFileDescriptor() != iodrivers_base::Driver::INVALID_FD)
-        setSerialPortControlSettings(rate, NONE, 1);
-    mDesiredBaudrate = rate;
 }
 
 void Driver::read()

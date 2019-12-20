@@ -8,29 +8,27 @@
 
 namespace dvl_teledyne
 {
+    /**Driver implementation for the dvl_teledyne.
+     *
+     * Usage:
+     * <ul>
+     *  <li> Use iodrivers_base::Driver::openURI to open the connection to the device
+     *  <li> Enter configuration Mode with setConfigurationMode.
+     *  <li> Configure the driver if/as needed using sendConfigurationFile or applyConfig
+     *       or the required set[Setting] methods.
+     *  <li> Start data collection using startAcquisition.
+     *  <li> Stop pinging with setConfigurationMode if needed.
+     * </ul>
+     */
     class Driver : public iodrivers_base::Driver, public PD0Parser
     {
         std::vector<uint8_t> buffer;
         int extractPacket (uint8_t const *buffer, size_t buffer_size) const;
 
         bool mConfMode;
-        BAUDRATE mDesiredBaudrate;
 
     public:
         Driver();
-
-        /** Tries to access the DVL at the provided URI
-         *
-         * For now, only a serial port can be provided. It is assumed that the
-         * DVL is using 9600 bauds (the manufacturer's default)
-         */
-        void open(std::string const& uri);
-
-        /** Once open using the baudrate specified in the URI, configures the
-         * device to output at a different baud rate, and modifies the driver's
-         * configuration accordingly
-         */
-        void setDesiredBaudrate(dvl_teledyne::BAUDRATE rate);
 
         /** Configures the output coordinate system */
         void setOutputConfiguration(OutputConfiguration conf);

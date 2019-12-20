@@ -1,11 +1,19 @@
 #include <dvl_teledyne/Driver.hpp>
 #include <iostream>
+#include <signal.h>
 
 using namespace dvl_teledyne;
 
+volatile sig_atomic_t quit = 0;
+
+void handleSignal(int signal)
+{
+    quit = 1;
+}
+
 void usage()
 {
-    std::cerr << "dvl_teledyne_read DEVICE" << std::endl;
+    std::cerr << "dvl_teledyne_read serial://PATH/TO/DEVICE:BAUDRATE" << std::endl;
 }
 
 int main(int argc, char const* argv[])
@@ -15,9 +23,11 @@ int main(int argc, char const* argv[])
         usage();
         return 1;
     }
+    signal(SIGINT, handleSignal);
 
     dvl_teledyne::Driver driver;
-    driver.open(argv[1]);
+    driver.openURI(argv[1]);
+    driver.startAcquisition();
     driver.setReadTimeout(base::Time::fromSeconds(5));
     driver.read();
 
@@ -30,7 +40,9 @@ int main(int argc, char const* argv[])
         std::cout << " range[" << beam << "] velocity[" << beam << "] evaluation[" << beam << "]";
     std::cout << std::endl;
 
-    while(true)
+    std::cout << std::endl << "Press CTRL + C to stop aquisition and exit the program." << std:: endl << std::endl;
+
+    while(!quit)
     {
         driver.read();
 
@@ -40,6 +52,8 @@ int main(int argc, char const* argv[])
             std::cout << " " << tracking.range[beam] << " " << tracking.velocity[beam] << " " << tracking.evaluation[beam];
         std::cout << std::endl;
     }
+    std::cout << std::endl << "Stopping data aquisition and shutting down." << std::endl;
+    driver.setConfigurationMode();
 }
 
 

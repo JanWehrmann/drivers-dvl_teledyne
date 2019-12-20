@@ -13,5 +13,5 @@ rock_executable(dvl_teledyne_configure
     MainConfigure.cpp
     DEPS dvl_teledyne)
 rock_executable(dvl_teledyne_apply_default_config
-    MainConfigConfigure.cpp
+    MainApplyDefaultConfig.cpp
     DEPS dvl_teledyne)
